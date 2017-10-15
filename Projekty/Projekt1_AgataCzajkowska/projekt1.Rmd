@@ -1,0 +1,94 @@
+---
+title: "Warsztaty badawcze - Projekt 1"
+author: "Agata Czajkowska"
+date: "Październik 14, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r,echo=FALSE,message=FALSE}
+source("czajkowskaa_projekt1.R")
+```
+
+
+W projekcie należało dokonać zadania predykcji na sztucznie wygenerowanych danych. Dane składały się z 50 cech i jednej zmiennej zależnej, która mogła przyjąć 2 możliwe wartości "klasa +" lub "klasa -". By w efekcie możliwe było sprawdzenie jakości predykcji dostarczony zbiór treningowy podzielono w sposób losowy na zbiór treningowy i testowy z zachowaniem proporcji 4:1.Wszystkie testy, decyzje o istotności zmiennych wykonano na poziomie istotności $\alpha=0.05$.
+
+### 1. Zależność między zmiennymi X a zmienną y ###
+
+W pierwszym kroku wykonano działania mające na celu wykrycie zależności pomiędzy zmiennymi objaśniającymi X a zmienną objaśnianą y. Analizy dokonano odzielnie dla zmiennych kategorycznych i zmiennych liczbowych. 
+
++ Dla zmiennych kategorycznych wykonywano chisq.test(). Hipoteza zerowa zmienna $X_i$ i zmienna $y$ są niezależne.
+
++ Zależność między zmiennymi liczbiwymi a zmienną $y$ weryfikowano przy pomocy anovy. Hipoteza zerowa: zmienna $X_i$ i zmienna $y$ są zależne.
+
+```{r,echo=FALSE,fig.width=10,fig.height=7,cache=TRUE, dev='cairo_pdf'}
+independent_variables<-get_independence(train_df)
+raw<-vizualise_indepnedent_variables(independent_variables)
+ind_sum<-vizualise_indepnedent_variables2(independent_variables)
+ggarrange(raw,ind_sum,ncol=1,nrow=2)
+
+```
+
+### 2. Selekcja zmiennych ###
+
+Selekcji zmiennych dokonano na dwa sposoby : za pomocą regresji logistycznej i przy użyciu metody krokowej z kierunkiem wstecz i karą AIC.W efekcie utworzono 2 modele. Zostały wybrane do nich następujące zmienne.
+
+```{r,echo=FALSE,cache=TRUE,fig.width=10,fig.height=3}
+train_df_no_na<-na.omit(train_df)
+glm_model1<-glm(y~.,train_df_no_na,family="binomial")
+
+train_df_glm_selected<-feature_selection_glm(train_df_no_na,glm_model1)
+train_df_step_selected_all<-feature_selection_step(glm_model1)
+train_df_step_selected<-train_df_step_selected_all[[1]]
+vizualize_feature_selection(train_df_glm_selected,train_df_step_selected,train_df)
+```
+
+Procedura step wybiera większy model niż regresja logistyczna. Wszystkie zmienne wybrane w modelu regresji liniowej zostały też wybrane przez procedurę krokową. Ponad to istnieją zmienne wybrane przez modele, dla których nie wykryto zależności między daną zmienną a zmienną objaśnianą np.M1. Istneją też takie zmienne, dla których wykryto zależności w poprzednim kroku analizy, a żaden ze sposobów selekcji zmiennych nie wybrał danej zminnej do modelu np.V1.
+
+### 3. Klasyfikacja ###
+
+Klasyfikacji dokonywano za pomocą dwóch metod : regresji logistycznej i z użyciem lasów losowych. Dla lasów losowych ilość drzew wynosiła 1000. Analizy dokonano dla każdej z metod na obu modelach wyznaczonych w poprzednim kroku. 
+
+```{r,echo=FALSE,cache=TRUE,fig.width=10}
+
+ordered_pred_rF_glm<-rf_glm_prediction(train_df_glm_selected)
+ordered_pred_rF_step<-rf_step_prediction(train_df_step_selected)
+order_glm_glm_pred<-glm_glm_prediction(train_df_glm_selected)
+order_glm_step_pred<-glm_step_prediction(train_df_step_selected)
+par(mfrow=c(1,2))
+varImpPlot(ordered_pred_rF_step[[1]],main="Istotone zmienne w algorytmie \n lasów losowych z modelem krokowym")
+varImpPlot(ordered_pred_rF_glm[[1]],main="Istotone zmienne algorytmie lasów \n losowych z modelem regresji logistycznej")
+
+```
+
+W obu przypadkach zmienne $M1 ,W1,U2 ,Q1$ uznano za najbardziej istotne w podanej kolejności. Następnie w większym modelu za bardziej istotną uznano zmienne $J1, B2,E2$ niż zmienną $S1$ . 
+
+\pagebreak
+
+Jako miarę jakości klasyfikacji wybrano precyzję dla 10% predykcji z najwyższymi prawdopobieństwami przynależności do klasy "+" . Otrzymano następujące wyniki:
+```{r,echo=FALSE}
+
+## b) random forest + glm
+level_rf_glm<-calculate_10percent_accuracy(test_df,ordered_pred_rF_glm[[2]][,2])
+## a) random forest + step
+level_rf_step<-calculate_10percent_accuracy(test_df,ordered_pred_rF_step[[2]][,2])
+## c) glm +glm
+level_glm_glm<-calculate_10percent_accuracy(test_df,order_glm_glm_pred)
+## d)
+level_glm_step<-calculate_10percent_accuracy(test_df,order_glm_step_pred)
+
+prediction_accuracy_df<-data.frame(Metoda=rep(c("Lasy losowe","Regresja logistyczna"),each=2),
+                                   Model=rep(c("Krokowy","Regresja logistyczna"),times=2),
+                                   Wynik=c(level_rf_step,level_rf_glm,level_glm_step,level_glm_glm)
+                                   )
+kable(prediction_accuracy_df)
+```
+
+
+Najlepszą skuteczność rzędu 88% dał model z otrzymany z procedury step a którym użyto algorytmu Rforest. Najmniejszą rzędu 75 % dał model z otrzymany z procedury step na którym użyto regresji logistycznej. 
