@@ -1,0 +1,62 @@
+---
+title: "Laboratoria 2"
+author: "Agata Czajkowska, Artur Minorczyk"
+date: "Padziernik 16, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+source("czajkowskaa_projekt1.R")
+```
+
+### 1 . Otrzymane wyniki
+
+W projekcie należało dokonać zadania predykcji na sztucznie wygenerowanych danych. Dane składały się z 50 cech i jednej zmiennej zależnej, która mogła przyjąć 2 możliwe wartości "klasa +" lub "klasa -". By w efekcie możliwe było sprawdzenie jakości predykcji dostarczony zbiór treningowy podzielono w sposób losowy na zbiór treningowy i testowy z zachowaniem proporcji 4:1.Wszystkie testy, decyzje o istotności zmiennych wykonano na poziomie istotności $\alpha=0.05$.Otrzymano następujące wyniki.
+
+```{r echo=FALSE,cache=TRUE,warning=FALSE,message=FALSE}
+train_df_no_na<-na.omit(train_df)
+glm_model1<-glm(y~.,train_df_no_na,family="binomial")
+## selekcja cech
+train_df_glm_selected<-feature_selection_glm(train_df_no_na,glm_model1)
+train_df_step_selected_all<-feature_selection_step(glm_model1)
+train_df_step_selected<-train_df_step_selected_all[[1]]
+## klasyfikacja
+ordered_pred_rF_glm<-rf_glm_prediction(train_df_glm_selected)
+ordered_pred_rF_step<-rf_step_prediction(train_df_step_selected)
+order_glm_glm_pred<-glm_glm_prediction(train_df_glm_selected)
+order_glm_step_pred<-glm_step_prediction(train_df_step_selected)
+
+## jakosc klasyfikacji 
+## b) random forest + glm
+level_rf_glm<-calculate_20percent_accuracy(test_df,ordered_pred_rF_glm[[2]][,2])
+## a) random forest + step
+level_rf_step<-calculate_20percent_accuracy(test_df,ordered_pred_rF_step[[2]][,2])
+## c) glm +glm
+level_glm_glm<-calculate_20percent_accuracy(test_df,order_glm_glm_pred)
+## d)
+level_glm_step<-calculate_20percent_accuracy(test_df,order_glm_step_pred)
+
+prediction_accuracy_df<-data.frame(Metoda=rep(c("Lasy losowe","Regresja logistyczna"),each=2),
+                                   Model=rep(c("Krokowy","Regresja logistyczna"),times=2),
+                                   Wynik=c(level_rf_step,level_rf_glm,level_glm_step,level_glm_glm)
+                                   )
+kable(prediction_accuracy_df)
+```
+
+### 2. Użyte metody 
+
+W projekcie użyto 2 rodzajów klasyfikacji : **regresji logistycznej** i **algorytmu lasów losowych** .  Wcześniej dokonano selekcji zmiennych na każdy z dwóch sposobów : **procedury krokowej** ( z kryterium AIC i kierunkiem wstecz), oraz **regresji logistycznej**. W efekcie przetestowano 4 przypadki , na obu modelach powstałych po selekcji zmiennych sprawdzono każdy z algorytmow klasyfikacji. 
+
+### 3. Wykres
+
+### 4. Poprawność otrzymanego wyniku
+
+Jakość klasyfikacji obliczono za pomocą wzoru $wynik=\frac{\sum_{i=1}^{0.2* |X_{test}|}{I(x_i)}}{0.2* |X_{test}|}$ , gdzie $I(x)=\begin{cases} 1, & \text{if} x \in klasa +\\ 0, & \text{if} x \notin klasa +\end{cases}$ , $X_{test}$ to zbiór obserwacji testowych uszeregowany nierosnąco względem predykcji przynależności do klasy + .
+
+
